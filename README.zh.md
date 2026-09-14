@@ -46,6 +46,15 @@ node topic-audit.mjs --full --json --out audit.json   # 覆盖长尾
 
 设置 `GITHUB_TOKEN`(或 `GH_TOKEN`)可以解除搜索接口的匿名限流;逐仓库检查走 `raw.githubusercontent.com`,不占用 API 配额。
 
+## 夜间索引
+
+仓库里有一个定时 workflow,把审计结果发布成滚动的 release 资产,目录站不需要自己跑就能取到一份可验证的清单:
+
+- JSON:`https://github.com/ciceroyang/dsh-topic-audit/releases/download/latest/audit.json`
+- 计数与当期挂名榜:见 `https://github.com/ciceroyang/dsh-topic-audit/releases/tag/latest` 的说明
+
+该资产每晚由一次干净的 `--bands` 运行重新生成,任何人都能用同一条命令复现并 diff。用滚动的 `latest` 标签是刻意的:这里提供的是一份**当前清单 + 可复核的配方**,而不是权威快照。
+
 ## 在 CI 里用
 
 本仓库同时是一个 composite action,定时任务三行搞定:

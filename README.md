@@ -46,6 +46,15 @@ An npm package is not published yet (publishing needs credentials this project d
 
 Set `GITHUB_TOKEN` (or `GH_TOKEN`) to lift the unauthenticated search rate limit. The per-repo checks use `raw.githubusercontent.com`, which is not part of the API rate limit.
 
+## Nightly index
+
+A scheduled workflow publishes the audit as a rolling release asset, so a directory ingester can fetch a verified list without running anything:
+
+- JSON: `https://github.com/ciceroyang/dsh-topic-audit/releases/download/latest/audit.json`
+- counts and the current top offenders: the notes on `https://github.com/ciceroyang/dsh-topic-audit/releases/tag/latest`
+
+The asset is regenerated from a clean `--bands` run each night, and anyone can reproduce it with the same command and diff. The rolling `latest` tag is deliberate: the value is a current list plus a verifiable recipe, not an authoritative snapshot.
+
 ## In CI
 
 The repository is also a composite action, so a nightly job is three lines:
