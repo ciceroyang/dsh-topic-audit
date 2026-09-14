@@ -19,7 +19,7 @@ On the first run the topic reported **14,846** repos. The GitHub search API retu
 `--bands` does not finish the job by itself. The three lowest bands are all larger than one window: 2-4 stars holds **2,755** repos, 1 star holds **3,503**, and 0 stars holds **6,581** — 12,839 repos that a star-band walk still cannot see in full. `--full` handles that by splitting any capped band by creation date and recursing until every window fits, flagging the rare window that is still capped at a single day:
 
 ```sh
-npx dsh-topic-audit --full --json --out audit.json
+node topic-audit.mjs --full --json --out audit.json
 ```
 
 A band or window that is still capped is flagged in the output, so incomplete coverage is visible rather than silent. `--bands` remains the cheap first pass.
@@ -30,22 +30,19 @@ First run, top 1,000 repos by stars (topic total 14,846): **580** `plugin`, **32
 
 ## Usage
 
-```sh
-# human-readable report
-npx dsh-topic-audit
-
-# machine-readable, for a nightly job or a directory ingester
-npx dsh-topic-audit --json --out audit.json
-
-# fail CI when the topic contains a repo that is not a plugin and not a companion
-npx dsh-topic-audit --strict
-```
-
-From a clone, without installing anything:
+No install, no dependencies — clone and run:
 
 ```sh
-node topic-audit.mjs --json --out audit.json
+git clone https://github.com/ciceroyang/dsh-topic-audit
+cd dsh-topic-audit
+
+node topic-audit.mjs                              # human-readable report
+node topic-audit.mjs --json --out audit.json      # machine-readable, for a nightly job or a directory ingester
+node topic-audit.mjs --strict                     # exit 1 when the topic contains a not-a-plugin
+node topic-audit.mjs --full --json --out audit.json   # walk the long tail
 ```
+
+An npm package is not published yet (publishing needs credentials this project does not have), so `npx dsh-topic-audit` does not resolve today. The npm name is free; if you want to publish it yourself, `npm publish` works from the clone as-is.
 
 Set `GITHUB_TOKEN` (or `GH_TOKEN`) to lift the unauthenticated search rate limit. The per-repo checks use `raw.githubusercontent.com`, which is not part of the API rate limit.
 

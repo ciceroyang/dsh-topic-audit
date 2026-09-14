@@ -19,7 +19,7 @@ GitHub 上的 [`dsh-plugin`](https://github.com/topics/dsh-plugin) topic 是 Dee
 `--bands` 并不能解决全部问题:最低的三个区间本身就超过一个窗口 —— 2-4 star 有 **2755** 个、1 star **3503** 个、0 star **6581** 个,合计 12839 个仓库是星段遍历也看不到全的。`--full` 会把触顶的区间再按创建日期递归二分,直到每个窗口都放得下;个别即使在"单日"窗口仍触顶的情况会被明确标出:
 
 ```sh
-npx dsh-topic-audit --full --json --out audit.json
+node topic-audit.mjs --full --json --out audit.json
 ```
 
 触顶的区间或窗口都会在输出里标出,不会静默截断;日常先用 `--bands` 快速过一遍即可。
@@ -30,11 +30,19 @@ npx dsh-topic-audit --full --json --out audit.json
 
 ## 用法
 
+零依赖、免安装,clone 即用:
+
 ```sh
-npx dsh-topic-audit                      # 人读报告
-npx dsh-topic-audit --json --out audit.json   # 机器可读,喂给定时任务或目录站
-npx dsh-topic-audit --strict             # CI 里用:出现 not-a-plugin 时退出码 1
+git clone https://github.com/ciceroyang/dsh-topic-audit
+cd dsh-topic-audit
+
+node topic-audit.mjs                              # 人读报告
+node topic-audit.mjs --json --out audit.json      # 机器可读,喂给定时任务或目录站
+node topic-audit.mjs --strict                     # CI 里用:出现 not-a-plugin 时退出码 1
+node topic-audit.mjs --full --json --out audit.json   # 覆盖长尾
 ```
+
+暂未发布到 npm(发布需要本项目当前没有的凭证),所以今天的 `npx dsh-topic-audit` 取不到包。npm 包名是空的;想自己发的话,直接在这个 clone 里 `npm publish` 即可。
 
 设置 `GITHUB_TOKEN`(或 `GH_TOKEN`)可以解除搜索接口的匿名限流;逐仓库检查走 `raw.githubusercontent.com`,不占用 API 配额。
 
