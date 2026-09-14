@@ -6,7 +6,7 @@
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 export const SCHEMA = 'dsh-topic-audit/v1';
 export const TOPIC = 'dsh-plugin';
 export const SEARCH_WINDOW = 1000; // GitHub search returns at most 1000 results per query
@@ -122,6 +122,64 @@ export function fetchTopicRepos(opts = {}) {
   return fetchQuery('topic:' + TOPIC, opts);
 }
 
+function dateNum(text) {
+  return Date.UTC(Number(text.slice(0, 4)), Number(text.slice(5, 7)) - 1, Number(text.slice(8, 10)));
+}
+
+function dateText(ms) {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+export function today() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+// A star band can exceed the 1000-result window on its own (the 0-star band holds
+// thousands of repos). Splitting the band by creation date, recursively, is how a
+// nightly job reaches the long tail. A window that is still capped at one day is
+// reported as truncated rather than silently dropped.
+export async function enumerateFull({ http = defaultHttp, token = '', bands = STAR_BANDS, from = '2008-01-01', to = today(), onSegment = null, maxQueries = 4000 } = {}) {
+  const seen = new Set();
+  const repos = [];
+  const coverage = [];
+  let queries = 0;
+  for (const band of bands) {
+    const stack = [{ from, to }];
+    let added = 0;
+    let found = 0;
+    let windows = 0;
+    let truncated = false;
+    while (stack.length && queries < maxQueries) {
+      const seg = stack.pop();
+      queries += 1;
+      const query = 'topic:' + TOPIC + ' stars:' + band + ' created:' + seg.from + '..' + seg.to;
+      const res = await fetchQuery(query, { http, token });
+      found += res.repos.length;
+      windows += 1;
+      for (const item of res.repos) {
+        if (!item || !item.full_name || seen.has(item.full_name)) continue;
+        seen.add(item.full_name);
+        repos.push(item);
+        added += 1;
+      }
+      if (res.capped) {
+        const start = dateNum(seg.from);
+        const end = dateNum(seg.to);
+        const mid = dateText(Math.floor((start + end) / 2));
+        if (mid === seg.from) {
+          truncated = true;
+        } else {
+          stack.push({ from: seg.from, to: mid });
+          stack.push({ from: dateText(dateNum(mid) + 86400000), to: seg.to });
+        }
+      }
+      if (onSegment) onSegment(band, seg.from, seg.to, res.repos.length, res.capped);
+    }
+    coverage.push({ band, added, found, windows, truncated, hitQueryLimit: queries >= maxQueries });
+  }
+  return { repos, coverage, queries };
+}
+
 export async function fetchTopicByBands({ http = defaultHttp, token = '', bands = STAR_BANDS, onBand = null } = {}) {
   const seen = new Set();
   const repos = [];
@@ -141,12 +199,20 @@ export async function fetchTopicByBands({ http = defaultHttp, token = '', bands 
   return { repos, coverage };
 }
 
-export async function runAudit({ http = defaultHttp, token = '', max = SEARCH_WINDOW, concurrency = 10, onPage = null, bands = false, onBand = null } = {}) {
+export async function runAudit({ http = defaultHttp, token = '', max = SEARCH_WINDOW, concurrency = 10, onPage = null, bands = false, full = false, onBand = null, onSegment = null, maxQueries = 4000, from = undefined, to = undefined } = {}) {
   let total;
   let repos;
   let coverage = null;
-  if (bands) {
+  let queries = null;
+  if (full || bands) {
     total = await topicTotal({ http, token });
+  }
+  if (full) {
+    const complete = await enumerateFull({ http, token, onSegment, maxQueries, from, to });
+    repos = complete.repos;
+    coverage = complete.coverage;
+    queries = complete.queries;
+  } else if (bands) {
     const sliced = await fetchTopicByBands({ http, token, onBand });
     repos = sliced.repos;
     coverage = sliced.coverage;
@@ -171,7 +237,7 @@ export async function runAudit({ http = defaultHttp, token = '', max = SEARCH_WI
   const offenders = results
     .filter((row) => row.category === 'not-a-plugin')
     .sort((a, b) => b.stars - a.stars);
-  return { total, scanned: results.length, summary, offenders, coverage, results };
+  return { total, scanned: results.length, summary, offenders, coverage, queries, results };
 }
 
 function pad(value, width) {
@@ -192,7 +258,11 @@ export function renderReport(audit, { generatedAt = new Date().toISOString(), to
   if (audit.coverage) {
     lines.push('coverage by star band (deduplicated):');
     for (const row of audit.coverage) {
-      lines.push('  ' + pad(row.band, 12) + ' ' + pad(row.added, 5) + ' new of ' + pad(row.found, 5) + ' found' + (row.capped ? '  [band capped at the 1000-result search window]' : ''));
+      const extra = [];
+      if (row.windows) extra.push(row.windows + ' windows');
+      if (row.capped) extra.push('capped at the 1000-result search window');
+      if (row.truncated) extra.push('still capped at a single day - truncated');
+      lines.push('  ' + pad(row.band, 12) + ' ' + pad(row.added, 5) + ' new of ' + pad(row.found, 5) + ' found' + (extra.length ? '  [' + extra.join('; ') + ']' : ''));
     }
     lines.push('');
   } else if (audit.total > audit.scanned) {
@@ -240,8 +310,10 @@ const USAGE = [
   '  node topic-audit.mjs [options]',
   '',
   'Options:',
-  '  --bands           walk star ranges instead of one query (full coverage; needed',
-  '                    because the topic is larger than the 1000-result search window)',
+  '  --bands           walk star ranges instead of one query (needed because the',
+  '                    topic is larger than the 1000-result search window)',
+  '  --full            like --bands, but recursively splits any band that still hits',
+  '                    the window by creation date, so the long tail is reachable',
   '  --json            print a JSON payload instead of a text report',
   '  --out <file>      also write the report (markdown, or JSON with --json) to <file>',
   '  --max <n>         cap the single-query scan (default 1000, the API window; ignored with --bands)',
@@ -261,6 +333,7 @@ export async function main(argv) {
   const wantJson = args.includes('--json');
   const strict = args.includes('--strict');
   const bands = args.includes('--bands');
+  const full = args.includes('--full');
   const outIndex = args.indexOf('--out');
   const outPath = outIndex >= 0 ? args[outIndex + 1] : null;
   const maxIndex = args.indexOf('--max');
@@ -275,11 +348,13 @@ export async function main(argv) {
     max,
     concurrency,
     bands,
+    full,
     onPage: bands ? null : (page, count, total) => process.stderr.write('  page ' + page + ': ' + count + ' repos (topic total ' + total + ')\n'),
-    onBand: bands ? (band, added, total, capped) => process.stderr.write('  band stars:' + band + ': +' + added + ' new of ' + total + ' found' + (capped ? ' (capped)' : '') + '\n') : null,
+    onBand: bands && !full ? (band, added, total, capped) => process.stderr.write('  band stars:' + band + ': +' + added + ' new of ' + total + ' found' + (capped ? ' (capped)' : '') + '\n') : null,
+    onSegment: full ? (band, from, to, found, capped) => process.stderr.write('  band ' + band + ' ' + from + '..' + to + ': ' + found + (capped ? ' (splitting)' : '') + '\n') : null,
   });
   const generatedAt = new Date().toISOString();
-  const payload = { schema: SCHEMA, generatedAt, topic: TOPIC, total: audit.total, scanned: audit.scanned, summary: audit.summary, coverage: audit.coverage, results: audit.results };
+  const payload = { schema: SCHEMA, generatedAt, topic: TOPIC, total: audit.total, scanned: audit.scanned, queries: audit.queries, summary: audit.summary, coverage: audit.coverage, results: audit.results };
   if (outPath) {
     writeFileSync(outPath, wantJson ? JSON.stringify(payload, null, 2) + '\n' : renderMarkdown(audit, { generatedAt }) + '\n', 'utf8');
   }

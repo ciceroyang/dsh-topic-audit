@@ -14,11 +14,15 @@ GitHub 上的 [`dsh-plugin`](https://github.com/topics/dsh-plugin) topic 是 Dee
 
 ## 覆盖范围:为什么单次查询不够
 
-首次运行时 topic 报告 **14846** 个仓库,而 GitHub 搜索接口单次查询最多返回 **1000** 条。因此 `npx dsh-topic-audit` 审计的是 star 前 1000 名 —— 恰好是 topic 页面最先展示的那一屏,也是访客实际看到的内容。需要长尾数据的目录站可以用 `--bands` 按 star 区间分片抓取再合并:
+首次运行时 topic 报告 **14846** 个仓库,而 GitHub 搜索接口单次查询最多返回 **1000** 条。因此 `npx dsh-topic-audit` 审计的是 star 前 1000 名 —— 恰好是 topic 页面最先展示的那一屏,也是访客实际看到的内容。
+
+`--bands` 并不能解决全部问题:最低的三个区间本身就超过一个窗口 —— 2-4 star 有 **2755** 个、1 star **3503** 个、0 star **6581** 个,合计 12839 个仓库是星段遍历也看不到全的。`--full` 会把触顶的区间再按创建日期递归二分,直到每个窗口都放得下;个别即使在"单日"窗口仍触顶的情况会被明确标出:
 
 ```sh
-npx dsh-topic-audit --bands --json --out audit.json
+npx dsh-topic-audit --full --json --out audit.json
 ```
+
+触顶的区间或窗口都会在输出里标出,不会静默截断;日常先用 `--bands` 快速过一遍即可。
 
 ## 首次基线
 
@@ -40,7 +44,8 @@ npx dsh-topic-audit --strict             # CI 里用:出现 not-a-plugin 时退�
 | --- | --- |
 | `--json` | 输出 JSON 而不是文本报告 |
 | `--out <file>` | 同时写入文件(默认 markdown,配合 `--json` 写 JSON) |
-| `--bands` | 按 star 区间遍历(全量覆盖;topic 总量远超单次查询 1000 条的上限) |
+| `--bands` | 按 star 区间遍历(topic 总量远超单次查询 1000 条的上限) |
+| `--full` | 在 `--bands` 基础上,对仍触顶的区间按创建日期递归二分,覆盖低 star 长尾 |
 | `--concurrency <n>` | 并发检查数(默认 10) |
 | `--max <n>` | 最多扫描 n 个仓库(默认 1000,即搜索接口上限) |
 | `--strict` | 出现 `not-a-plugin` 时退出码 1 |

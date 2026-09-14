@@ -14,13 +14,15 @@ The `companion` bucket exists on purpose. Real DSH plugins and ecosystem tooling
 
 ## Coverage: why one query is not enough
 
-On the first run the topic reported **14,846** repos. The GitHub search API returns at most **1,000** results for any single query, so `npx dsh-topic-audit` audits the top 1,000 by stars — exactly the slice the topic page shows first, and therefore the slice that determines what a visitor sees. A directory ingester that needs the long tail uses `--bands`, which slices the topic by star count and merges the results:
+On the first run the topic reported **14,846** repos. The GitHub search API returns at most **1,000** results for any single query, so `npx dsh-topic-audit` audits the top 1,000 by stars — exactly the slice the topic page shows first, and therefore the slice that determines what a visitor sees.
+
+`--bands` does not finish the job by itself. The three lowest bands are all larger than one window: 2-4 stars holds **2,755** repos, 1 star holds **3,503**, and 0 stars holds **6,581** — 12,839 repos that a star-band walk still cannot see in full. `--full` handles that by splitting any capped band by creation date and recursing until every window fits, flagging the rare window that is still capped at a single day:
 
 ```sh
-npx dsh-topic-audit --bands --json --out audit.json
+npx dsh-topic-audit --full --json --out audit.json
 ```
 
-A band that hits the 1,000-result window is flagged in the output, so an incomplete band is visible rather than silent.
+A band or window that is still capped is flagged in the output, so incomplete coverage is visible rather than silent. `--bands` remains the cheap first pass.
 
 ## Baseline
 
@@ -51,7 +53,8 @@ Set `GITHUB_TOKEN` (or `GH_TOKEN`) to lift the unauthenticated search rate limit
 
 | flag | effect |
 | --- | --- |
-| `--bands` | walk star ranges instead of one query — full coverage, needed because the topic is larger than the 1000-result search window |
+| `--bands` | walk star ranges instead of one query, needed because the topic is larger than the 1000-result search window |
+| `--full` | like `--bands`, but recursively splits any band that still hits the window by creation date, so the low-star long tail is reachable |
 | `--json` | print a JSON payload instead of the text report |
 | `--concurrency <n>` | parallel repo checks (default 10) |
 | `--out <file>` | also write the report to a file (markdown, or JSON with `--json`) |
