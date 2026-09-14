@@ -1,0 +1,36 @@
+name: dsh-topic-audit
+description: Audit the GitHub dsh-plugin topic for repos that are not DSH plugins
+author: ciceroyang
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  args:
+    description: CLI arguments passed to topic-audit.mjs
+    required: false
+    default: --json --out dsh-topic-audit.json
+  token:
+    description: Token used to lift the search rate limit
+    required: false
+    default: ""
+
+outputs:
+  report:
+    description: Path the report was written to
+    value: ${{ steps.audit.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - id: audit
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token || github.token }}
+      run: |
+        node "${{ github.action_path }}/topic-audit.mjs" ${{ inputs.args }}
+        out="dsh-topic-audit.json"
+        if printf '%s' "${{ inputs.args }}" | grep -q -- '--out'; then
+          out=$(printf '%s' "${{ inputs.args }}" | sed -n 's/.*--out[= ]\([^ ]*\).*/\1/p')
+        fi
+        echo "report=$out" >> "$GITHUB_OUTPUT"

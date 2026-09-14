@@ -46,6 +46,18 @@ node topic-audit.mjs --full --json --out audit.json   # 覆盖长尾
 
 设置 `GITHUB_TOKEN`(或 `GH_TOKEN`)可以解除搜索接口的匿名限流;逐仓库检查走 `raw.githubusercontent.com`,不占用 API 配额。
 
+## 在 CI 里用
+
+本仓库同时是一个 composite action,定时任务三行搞定:
+
+```yaml
+- uses: ciceroyang/dsh-topic-audit@main
+  with:
+    args: --json --out audit.json
+```
+
+action 会注入 workflow token(解除搜索限流),并把报告路径作为 `report` 输出。需要出现 `not-a-plugin` 就失败时在 `args` 里加 `--strict`;需要覆盖 star 前 1000 名之外时加 `--bands` 或 `--full`。
+
 ## 选项
 
 | 参数 | 作用 |

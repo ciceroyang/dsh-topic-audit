@@ -46,6 +46,18 @@ An npm package is not published yet (publishing needs credentials this project d
 
 Set `GITHUB_TOKEN` (or `GH_TOKEN`) to lift the unauthenticated search rate limit. The per-repo checks use `raw.githubusercontent.com`, which is not part of the API rate limit.
 
+## In CI
+
+The repository is also a composite action, so a nightly job is three lines:
+
+```yaml
+- uses: ciceroyang/dsh-topic-audit@main
+  with:
+    args: --json --out audit.json
+```
+
+The action injects the workflow token (lifting the search rate limit) and exposes the report path as the `report` output. Add `--strict` to `args` to fail the job when the topic contains a `not-a-plugin`; add `--bands` or `--full` when the job needs more than the top 1,000 by stars.
+
 ## Options
 
 | flag | effect |
