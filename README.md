@@ -24,7 +24,7 @@ A band that hits the 1,000-result window is flagged in the output, so an incompl
 
 ## Baseline
 
-First run, top 1,000 repos by stars (topic total 14,846): **580** `plugin`, **323** `companion`, **97** `not-a-plugin`. Six of the ten highest-starred repos carrying the topic are not DSH plugins at all, including a 42k-star resume builder and a 72k-star general agent framework. The verdicts are reproducible from the rules below, and every row carries its evidence string.
+First run, top 1,000 repos by stars (topic total 14,846): **580** `plugin`, **323** `companion`, **97** `not-a-plugin`. Five of the ten highest-starred repos carrying the topic are not DSH plugins at all, including a 42k-star resume builder and a 72k-star general agent framework; those 97 repos hold 302k stars between them, more than the 580 real plugins combined (70k). The verdicts are reproducible from the rules below, and every row carries its evidence string.
 
 ## Usage
 

@@ -22,7 +22,7 @@ npx dsh-topic-audit --bands --json --out audit.json
 
 ## 首次基线
 
-首次运行,star 前 1000 名(topic 总量 14846):`plugin` **580**、`companion` **323**、`not-a-plugin` **97**。topic star 前十里有六个与 DSH 插件无关,包括一个 42k star 的简历生成器和一个 72k star 的通用 agent 框架。判定完全由下面的规则复现,每一行都带 evidence。
+首次运行,star 前 1000 名(topic 总量 14846):`plugin` **580**、`companion` **323**、`not-a-plugin` **97**。topic star 前十里有五个与 DSH 插件无关,包括一个 42k star 的简历生成器和一个 72k star 的通用 agent 框架;这 97 个仓库合计 30 万 star,超过 580 个真插件之和(7 万)。判定完全由下面的规则复现,每一行都带 evidence。
 
 ## 用法
 
