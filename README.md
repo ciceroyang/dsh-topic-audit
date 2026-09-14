@@ -14,7 +14,7 @@ The `companion` bucket exists on purpose. Real DSH plugins and ecosystem tooling
 
 ## Coverage: why one query is not enough
 
-On the first run the topic reported **14,846** repos. The GitHub search API returns at most **1,000** results for any single query, so `npx dsh-topic-audit` audits the top 1,000 by stars — exactly the slice the topic page shows first, and therefore the slice that determines what a visitor sees.
+On the first run the topic reported **14,846** repos. The GitHub search API returns at most **1,000** results for any single query, so a single-query run audits the top 1,000 by stars — exactly the slice the topic page shows first, and therefore the slice that determines what a visitor sees.
 
 `--bands` does not finish the job by itself. The three lowest bands are all larger than one window: 2-4 stars holds **2,755** repos, 1 star holds **3,503**, and 0 stars holds **6,581** — 12,839 repos that a star-band walk still cannot see in full. `--full` handles that by splitting any capped band by creation date and recursing until every window fits, flagging the rare window that is still capped at a single day:
 
