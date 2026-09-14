@@ -6,7 +6,7 @@
 import { writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
-export const VERSION = '0.3.0';
+export const VERSION = '0.4.0';
 export const SCHEMA = 'dsh-topic-audit/v1';
 export const TOPIC = 'dsh-plugin';
 export const SEARCH_WINDOW = 1000; // GitHub search returns at most 1000 results per query
@@ -89,14 +89,29 @@ export async function auditRepo(repo, http) {
   };
 }
 
-export async function fetchQuery(query, { http = defaultHttp, token = '', max = SEARCH_WINDOW, onPage = null } = {}) {
+export function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export async function fetchQuery(query, { http = defaultHttp, token = '', max = SEARCH_WINDOW, onPage = null, delay = 0, retryDelays = [2000, 8000, 20000], onRetry = null } = {}) {
   const repos = [];
   let total = 0;
   let capped = false;
+  let retries = 0;
   for (let page = 1; page <= 10; page += 1) {
-    const res = await http(searchUrl(query, page), headersFor(token));
-    if (res.status === 403 || res.status === 429) {
-      throw new Error('GitHub search rate limit hit (status ' + res.status + '). Set GITHUB_TOKEN or GH_TOKEN to raise the limit.');
+    let res;
+    for (;;) {
+      if (delay > 0) await sleep(delay);
+      res = await http(searchUrl(query, page), headersFor(token));
+      const limited = res.status === 403 || res.status === 429;
+      if (!limited) break;
+      if (retries >= retryDelays.length) {
+        throw new Error('GitHub search rate limit hit (status ' + res.status + ') after ' + retries + ' retries for ' + query + '. Set GITHUB_TOKEN or GH_TOKEN to a personal token, or raise --delay.');
+      }
+      const wait = retryDelays[retries];
+      retries += 1;
+      if (onRetry) onRetry(query, page, res.status, wait, retries);
+      await sleep(wait);
     }
     if (res.status !== 200) throw new Error('GitHub search failed with status ' + res.status + ' for ' + query);
     const json = JSON.parse(res.text);
@@ -111,7 +126,7 @@ export async function fetchQuery(query, { http = defaultHttp, token = '', max = 
     if (items.length < 100) break;
     if (repos.length >= total) break;
   }
-  return { total, repos, capped };
+  return { total, repos, capped, retries };
 }
 
 export function topicTotal(opts = {}) {
@@ -138,7 +153,7 @@ export function today() {
 // thousands of repos). Splitting the band by creation date, recursively, is how a
 // nightly job reaches the long tail. A window that is still capped at one day is
 // reported as truncated rather than silently dropped.
-export async function enumerateFull({ http = defaultHttp, token = '', bands = STAR_BANDS, from = '2008-01-01', to = today(), onSegment = null, maxQueries = 4000 } = {}) {
+export async function enumerateFull({ http = defaultHttp, token = '', bands = STAR_BANDS, from = '2008-01-01', to = today(), onSegment = null, maxQueries = 4000, delay = 0, onRetry = null } = {}) {
   const seen = new Set();
   const repos = [];
   const coverage = [];
@@ -153,7 +168,7 @@ export async function enumerateFull({ http = defaultHttp, token = '', bands = ST
       const seg = stack.pop();
       queries += 1;
       const query = 'topic:' + TOPIC + ' stars:' + band + ' created:' + seg.from + '..' + seg.to;
-      const res = await fetchQuery(query, { http, token });
+      const res = await fetchQuery(query, { http, token, delay, onRetry });
       found += res.repos.length;
       windows += 1;
       for (const item of res.repos) {
@@ -180,12 +195,12 @@ export async function enumerateFull({ http = defaultHttp, token = '', bands = ST
   return { repos, coverage, queries };
 }
 
-export async function fetchTopicByBands({ http = defaultHttp, token = '', bands = STAR_BANDS, onBand = null } = {}) {
+export async function fetchTopicByBands({ http = defaultHttp, token = '', bands = STAR_BANDS, onBand = null, delay = 0, onRetry = null } = {}) {
   const seen = new Set();
   const repos = [];
   const coverage = [];
   for (const band of bands) {
-    const res = await fetchQuery('topic:' + TOPIC + ' stars:' + band, { http, token });
+    const res = await fetchQuery('topic:' + TOPIC + ' stars:' + band, { http, token, delay, onRetry });
     let added = 0;
     for (const item of res.repos) {
       if (!item || !item.full_name || seen.has(item.full_name)) continue;
@@ -199,25 +214,25 @@ export async function fetchTopicByBands({ http = defaultHttp, token = '', bands 
   return { repos, coverage };
 }
 
-export async function runAudit({ http = defaultHttp, token = '', max = SEARCH_WINDOW, concurrency = 10, onPage = null, bands = false, full = false, onBand = null, onSegment = null, maxQueries = 4000, from = undefined, to = undefined } = {}) {
+export async function runAudit({ http = defaultHttp, token = '', max = SEARCH_WINDOW, concurrency = 10, onPage = null, bands = false, full = false, onBand = null, onSegment = null, maxQueries = 4000, from = undefined, to = undefined, delay = 0, onRetry = null } = {}) {
   let total;
   let repos;
   let coverage = null;
   let queries = null;
   if (full || bands) {
-    total = await topicTotal({ http, token });
+    total = await topicTotal({ http, token, delay, onRetry });
   }
   if (full) {
-    const complete = await enumerateFull({ http, token, onSegment, maxQueries, from, to });
+    const complete = await enumerateFull({ http, token, onSegment, maxQueries, from, to, delay, onRetry });
     repos = complete.repos;
     coverage = complete.coverage;
     queries = complete.queries;
   } else if (bands) {
-    const sliced = await fetchTopicByBands({ http, token, onBand });
+    const sliced = await fetchTopicByBands({ http, token, onBand, delay, onRetry });
     repos = sliced.repos;
     coverage = sliced.coverage;
   } else {
-    const res = await fetchTopicRepos({ http, token, max, onPage });
+    const res = await fetchTopicRepos({ http, token, max, onPage, delay, onRetry });
     total = res.total;
     repos = res.repos;
   }
@@ -318,6 +333,7 @@ const USAGE = [
   '  --out <file>      also write the report (markdown, or JSON with --json) to <file>',
   '  --max <n>         cap the single-query scan (default 1000, the API window; ignored with --bands)',
   '  --concurrency <n> parallel repo checks (default 10)',
+  '  --delay <ms>      wait between search queries (default 0; CI tokens often need 2000+)',
   '  --strict          exit 1 when any scanned repo is not-a-plugin',
   '  --help            show this help',
   '',
@@ -339,6 +355,9 @@ export async function main(argv) {
   const maxIndex = args.indexOf('--max');
   const max = maxIndex >= 0 ? Number(args[maxIndex + 1]) : SEARCH_WINDOW;
   if (!Number.isFinite(max) || max <= 0) throw new Error('--max needs a positive number');
+  const delayIndex = args.indexOf('--delay');
+  const delay = delayIndex >= 0 ? Number(args[delayIndex + 1]) : 0;
+  if (!Number.isFinite(delay) || delay < 0) throw new Error('--delay needs a non-negative number');
   const concurrencyIndex = args.indexOf('--concurrency');
   const concurrency = concurrencyIndex >= 0 ? Number(args[concurrencyIndex + 1]) : 10;
   if (!Number.isFinite(concurrency) || concurrency <= 0) throw new Error('--concurrency needs a positive number');
@@ -349,9 +368,11 @@ export async function main(argv) {
     concurrency,
     bands,
     full,
+    delay,
     onPage: bands ? null : (page, count, total) => process.stderr.write('  page ' + page + ': ' + count + ' repos (topic total ' + total + ')\n'),
     onBand: bands && !full ? (band, added, total, capped) => process.stderr.write('  band stars:' + band + ': +' + added + ' new of ' + total + ' found' + (capped ? ' (capped)' : '') + '\n') : null,
     onSegment: full ? (band, from, to, found, capped) => process.stderr.write('  band ' + band + ' ' + from + '..' + to + ': ' + found + (capped ? ' (splitting)' : '') + '\n') : null,
+    onRetry: (query, page, status, wait, attempt) => process.stderr.write('  rate limited (status ' + status + '), retry ' + attempt + ' in ' + wait + 'ms: ' + query + ' page ' + page + '\n'),
   });
   const generatedAt = new Date().toISOString();
   const payload = { schema: SCHEMA, generatedAt, topic: TOPIC, total: audit.total, scanned: audit.scanned, queries: audit.queries, summary: audit.summary, coverage: audit.coverage, results: audit.results };

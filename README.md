@@ -67,6 +67,8 @@ The repository is also a composite action, so a nightly job is three lines:
 
 The action injects the workflow token (lifting the search rate limit) and exposes the report path as the `report` output. Add `--strict` to `args` to fail the job when the topic contains a `not-a-plugin`; add `--bands` or `--full` when the job needs more than the top 1,000 by stars.
 
+The default Actions token has a much smaller search quota than a personal token. The audit retries a rate-limited query with backoff (2s, 8s, 20s) and accepts `--delay`; the nightly workflow that ships with this repo uses `--delay 2500`, which is enough for the 14-band walk. For heavier runs, pass a personal token through the action `token` input.
+
 ## Options
 
 | flag | effect |
@@ -75,6 +77,7 @@ The action injects the workflow token (lifting the search rate limit) and expose
 | `--full` | like `--bands`, but recursively splits any band that still hits the window by creation date, so the low-star long tail is reachable |
 | `--json` | print a JSON payload instead of the text report |
 | `--concurrency <n>` | parallel repo checks (default 10) |
+| `--delay <ms>` | wait between search queries (default 0; CI tokens usually need 2000 or more) |
 | `--out <file>` | also write the report to a file (markdown, or JSON with `--json`) |
 | `--max <n>` | scan at most n repos (default 1000, the search API cap) |
 | `--strict` | exit 1 when any scanned repo is `not-a-plugin` |

@@ -16,7 +16,7 @@ jobs:
       - name: Audit the topic
         uses: ./
         with:
-          args: --bands --json --out audit.json
+          args: --bands --json --out audit.json --delay 2500
       - name: Compose the summary
         run: node scripts/summary.mjs audit.json summary.md
       - name: Publish the rolling release

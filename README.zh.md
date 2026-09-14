@@ -67,6 +67,8 @@ node topic-audit.mjs --full --json --out audit.json   # 覆盖长尾
 
 action 会注入 workflow token(解除搜索限流),并把报告路径作为 `report` 输出。需要出现 `not-a-plugin` 就失败时在 `args` 里加 `--strict`;需要覆盖 star 前 1000 名之外时加 `--bands` 或 `--full`。
 
+Actions 默认 token 的搜索配额远小于个人 token。审计遇到限流会退避重试(2s、8s、20s),并支持 `--delay`;本仓库自带的夜间 workflow 用 `--delay 2500`,足够跑完 14 个星段。更重的任务可以通过 action 的 `token` 输入传个人 token。
+
 ## 选项
 
 | 参数 | 作用 |
@@ -76,6 +78,7 @@ action 会注入 workflow token(解除搜索限流),并把报告路径作为 `re
 | `--bands` | 按 star 区间遍历(topic 总量远超单次查询 1000 条的上限) |
 | `--full` | 在 `--bands` 基础上,对仍触顶的区间按创建日期递归二分,覆盖低 star 长尾 |
 | `--concurrency <n>` | 并发检查数(默认 10) |
+| `--delay <ms>` | 每次搜索查询之间的等待毫秒数(默认 0;CI token 通常需要 2000 以上) |
 | `--max <n>` | 最多扫描 n 个仓库(默认 1000,即搜索接口上限) |
 | `--strict` | 出现 `not-a-plugin` 时退出码 1 |
 | `--help` | 帮助 |

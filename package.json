@@ -1,6 +1,6 @@
 {
   "name": "dsh-topic-audit",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Audit the GitHub dsh-plugin topic: which repos are real DSH plugins, which are companions, which are pollution.",
   "type": "module",
   "bin": {
