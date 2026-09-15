@@ -113,6 +113,7 @@ The audit prints no accusations beyond what those rules produce, and every row c
 - The mention test is the product name `DeepSeek Harness`, not the word `DeepSeek`. A repo that merely offers a DeepSeek API key option does not pass, which is intentional: that was the exact false positive found on a 41k-star repo.
 - `raw.githubusercontent.com` is case-sensitive, so the README probe tries the common spellings. An unusual README filename reads as missing.
 - The search API caps a query at 1000 repos, and the topic is much larger than that: a single-query run covers the top 1000 by stars and prints a note saying so. `--bands` walks star ranges (`stars:>=10000` down to `stars:0`) and deduplicates, which is the only way to approach full coverage.
+- Run-to-run drift: when a band exceeds the 1,000-result window, `--bands` returns 1,000 members of that band, but tie ordering is not guaranteed and star counts drift between runs. Two consecutive runs of this repo saw 5,004 and 5,007 repos, with 230 and 259 `not-a-plugin`. Treat a banded index as a filter over the noisy high-star region, not a census; use `--full` when exact membership matters.
 - The verdict is about the `dsh-plugin` topic claim, not about repo quality.
 
 ## Related
