@@ -42,7 +42,7 @@ node topic-audit.mjs --strict                     # exit 1 when the topic contai
 node topic-audit.mjs --full --json --out audit.json   # walk the long tail
 ```
 
-An npm package is not published yet (publishing needs credentials this project does not have), so `npx dsh-topic-audit` does not resolve today. The npm name is free; if you want to publish it yourself, `npm publish` works from the clone as-is.
+An npm package is not published yet, so `npx dsh-topic-audit` does not resolve today. The name is free and publishing is wired up — `.github/workflows/npm-publish.yml` publishes on a `v*` tag whose number matches `package.json`, using npm Trusted Publishing (OIDC, no token stored in the repository). The one-time step is configuring the trusted publisher for `ciceroyang/dsh-topic-audit` + `npm-publish.yml` on npmjs.com. Until that exists, use `npx github:ciceroyang/dsh-topic-audit`.
 
 Set `GITHUB_TOKEN` (or `GH_TOKEN`) to lift the unauthenticated search rate limit. The per-repo checks use `raw.githubusercontent.com`, which is not part of the API rate limit.
 
